@@ -1,11 +1,18 @@
+import { app, BrowserWindow } from "electron";
 import { shouldQuit } from "./squirrel-startup";
+
+if (process.platform === "linux" && process.arch === "arm64") {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("disable-gpu-compositing");
+  app.commandLine.appendSwitch("enable-transparent-visuals");
+}
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (shouldQuit) {
   app.quit();
 }
 
-import { app, BrowserWindow } from "electron";
 import { loadElectronLlm } from "@electron/llm";
 import { setupIpcListeners } from "./ipc";
 import { createMainWindow, setupWindowListener } from "./windows";
