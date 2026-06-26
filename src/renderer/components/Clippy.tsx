@@ -99,7 +99,7 @@ export function Clippy() {
           height: "93px",
           width: "124px",
           backgroundColor: enableDragDebug ? "blue" : "transparent",
-          opacity: 0.5,
+          opacity: enableDragDebug ? 0.5 : 1,
           zIndex: 5,
         }}
       >

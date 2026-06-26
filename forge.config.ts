@@ -7,7 +7,6 @@ import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import { MakerZIP } from "@electron-forge/maker-zip";
 import { MakerDeb } from "@electron-forge/maker-deb";
-import { MakerRpm } from "@electron-forge/maker-rpm";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
@@ -106,7 +105,7 @@ const config: ForgeConfig = {
       unpack: "**/node_modules/*node-llama-cpp*/**",
     },
     ignore: (file) => {
-      const filePath = file.toLowerCase().replace(/\\/g, "/");
+      const filePath = file.toLowerCase().replace(/\\\\/g, "/");
       const result = {
         keep: false,
         log: true,
@@ -244,7 +243,6 @@ const config: ForgeConfig = {
       ["win32"],
     ),
     new MakerZIP({}, ["darwin", "win32"]),
-    new MakerRpm({}),
     new MakerDeb({}),
   ],
   plugins: [
