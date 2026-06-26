@@ -69,9 +69,3 @@ input[type="number"]::-webkit-inner-spin-button {
 fieldset:not(:first-child) {
   margin-top: 20px;
 }
-
-/* Hardware acceleration hints for better performance on limited graphics hardware */
-.clippy {
-  will-change: auto;
-  transform: translateZ(0);
-}
