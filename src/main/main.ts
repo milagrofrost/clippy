@@ -1,5 +1,11 @@
 import { app, BrowserWindow } from "electron";
 import { shouldQuit } from "./squirrel-startup";
+import { loadElectronLlm } from "@electron/llm";
+import { setupIpcListeners } from "./ipc";
+import { createMainWindow, setupWindowListener } from "./windows";
+import { getModelManager } from "./models";
+import { setupAutoUpdater } from "./update";
+import { setupAppMenu } from "./menu";
 
 if (process.platform === "linux" && process.arch === "arm64") {
   app.disableHardwareAcceleration();
@@ -12,13 +18,6 @@ if (process.platform === "linux" && process.arch === "arm64") {
 if (shouldQuit) {
   app.quit();
 }
-
-import { loadElectronLlm } from "@electron/llm";
-import { setupIpcListeners } from "./ipc";
-import { createMainWindow, setupWindowListener } from "./windows";
-import { getModelManager } from "./models";
-import { setupAutoUpdater } from "./update";
-import { setupAppMenu } from "./menu";
 
 async function onReady() {
   console.info(`Welcome to Clippy v${app.getVersion()}`);
