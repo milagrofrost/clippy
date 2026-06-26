@@ -77,7 +77,6 @@ export function Clippy() {
       }
     }
 
-    // Clean up timeouts when component unmounts or status changes
     return () => {
       if (animationTimeoutId) {
         window.clearTimeout(animationTimeoutId);
@@ -119,6 +118,7 @@ export function Clippy() {
         ></div>
       </div>
       <img
+        key={animation.src}
         className="app-no-select"
         src={animation.src}
         draggable={false}
