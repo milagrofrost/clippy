@@ -4,6 +4,7 @@ import { Message } from "./Message";
 import { ChatInput } from "./ChatInput";
 import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
 import { useChat } from "../contexts/ChatContext";
+import { useSharedState } from "../contexts/SharedStateContext";
 import { electronAi } from "../clippyApi";
 
 export type ChatProps = {
@@ -13,6 +14,7 @@ export type ChatProps = {
 export function Chat({ style }: ChatProps) {
   const { setAnimationKey, setStatus, status, messages, addMessage } =
     useChat();
+  const { settings } = useSharedState();
   const [streamingMessageContent, setStreamingMessageContent] =
     useState<string>("");
   const [lastRequestUUID, setLastRequestUUID] = useState<string>(
@@ -43,9 +45,12 @@ export function Chat({ style }: ChatProps) {
       const requestUUID = crypto.randomUUID();
       setLastRequestUUID(requestUUID);
 
-      const response = await window.electronAi.promptStreaming(message, {
-        requestUUID,
-      });
+      const response = await window.electronAi.promptStreaming(
+        getPromptWithSystemInstructions(message, settings.systemPrompt),
+        {
+          requestUUID,
+        },
+      );
 
       let fullContent = "";
       let filteredContent = "";
@@ -111,6 +116,22 @@ export function Chat({ style }: ChatProps) {
       <ChatInput onSend={handleSendMessage} onAbort={handleAbortMessage} />
     </div>
   );
+}
+
+function getPromptWithSystemInstructions(
+  userMessage: string,
+  systemPrompt?: string,
+): string {
+  if (!systemPrompt) {
+    return userMessage;
+  }
+
+  const resolvedSystemPrompt = systemPrompt.replace(
+    "[LIST OF ANIMATIONS]",
+    ANIMATION_KEYS_BRACKETS.join(", "),
+  );
+
+  return `<system_instructions>\n${resolvedSystemPrompt}\n</system_instructions>\n\n<user_message>\n${userMessage}\n</user_message>`;
 }
 
 /**
