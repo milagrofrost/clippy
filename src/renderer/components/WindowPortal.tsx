@@ -4,7 +4,6 @@ import ReactDOM from "react-dom";
 import { clippyApi } from "../clippyApi";
 import { WindowContext } from "../contexts/WindowContext";
 import { useChat } from "../contexts/ChatContext";
-import { useSharedState } from "../contexts/SharedStateContext";
 
 interface WindowPortalProps {
   children: React.ReactNode;
@@ -28,7 +27,6 @@ export function WindowPortal({
 }: WindowPortalProps) {
   const [externalWindow, setExternalWindow] = useState<Window | null>(null);
   const { isChatWindowOpen, setIsChatWindowOpen } = useChat();
-  const { settings } = useSharedState();
   const hasAppliedStartupChatPreference = useRef(false);
 
   useEffect(() => {
@@ -41,8 +39,10 @@ export function WindowPortal({
     const openChatFromSavedStartupPreference = async () => {
       try {
         const state = await clippyApi.getFullState();
+        const shouldOpenChat = state.settings.alwaysOpenChat === true;
+        const chatWindowMissing = !_externalWindow || _externalWindow.closed;
 
-        if (state.settings.alwaysOpenChat && (!_externalWindow || _externalWindow.closed)) {
+        if (shouldOpenChat && chatWindowMissing) {
           setIsChatWindowOpen(true);
         }
       } catch (error) {
@@ -52,12 +52,6 @@ export function WindowPortal({
 
     void openChatFromSavedStartupPreference();
   }, [setIsChatWindowOpen]);
-
-  useEffect(() => {
-    if (settings.alwaysOpenChat && (!_externalWindow || _externalWindow.closed)) {
-      setIsChatWindowOpen(true);
-    }
-  }, [settings.alwaysOpenChat, setIsChatWindowOpen]);
 
   // Initialize the singleton container only once
   useEffect(() => {
