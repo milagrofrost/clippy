@@ -13,6 +13,7 @@ export interface SettingsState {
   clippyAlwaysOnTop?: boolean;
   chatAlwaysOnTop?: boolean;
   alwaysOpenChat?: boolean;
+  centerChatWindow?: boolean;
   topK?: number;
   temperature?: number;
   defaultFont: DefaultFont;
@@ -42,6 +43,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   clippyAlwaysOnTop: true,
   chatAlwaysOnTop: true,
   alwaysOpenChat: true,
+  centerChatWindow: false,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   topK: 10,
   temperature: 0.7,
