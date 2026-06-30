@@ -67,7 +67,8 @@ export function Chat({ style }: ChatProps) {
 
       let fullContent = "";
       let filteredContent = "";
-      let hasSetAnimationKey = false;
+      let hasFinishedAnimationParsing = false;
+      let hasTriggeredAnimation = false;
       let hasLoggedNoAnimationYet = false;
       let chunkIndex = 0;
 
@@ -79,16 +80,22 @@ export function Chat({ style }: ChatProps) {
           setStatus("responding");
         }
 
-        if (!hasSetAnimationKey) {
+        if (!hasFinishedAnimationParsing) {
           const contentToParse = fullContent + chunk;
-          const { text, animationKey, matchedToken, parserState } =
-            filterMessageContent(contentToParse);
+          const {
+            text,
+            animationKey,
+            matchedToken,
+            parserState,
+            unsupportedToken,
+          } = filterMessageContent(contentToParse);
 
           console.log(`[Clippy Chat] Raw accumulated response: ${contentToParse}`);
           console.log(
             `[Clippy Chat] Animation parser result: ${JSON.stringify({
               parserState,
               matchedToken,
+              unsupportedToken,
               animationKey,
               filteredTextPreview: text.slice(0, 200),
             })}`,
@@ -102,7 +109,13 @@ export function Chat({ style }: ChatProps) {
               `[Clippy Chat] Triggering animation: ${animationKey} from token ${matchedToken}`,
             );
             setAnimationKey(animationKey);
-            hasSetAnimationKey = true;
+            hasTriggeredAnimation = true;
+            hasFinishedAnimationParsing = true;
+          } else if (unsupportedToken) {
+            console.warn(
+              `[Clippy Chat] Unsupported animation token stripped from response: ${unsupportedToken}`,
+            );
+            hasFinishedAnimationParsing = true;
           } else if (
             parserState === "no-animation-token" &&
             !hasLoggedNoAnimationYet
@@ -111,6 +124,7 @@ export function Chat({ style }: ChatProps) {
               "[Clippy Chat] No valid animation token detected at the start of the response yet.",
             );
             hasLoggedNoAnimationYet = true;
+            hasFinishedAnimationParsing = true;
           }
         } else {
           filteredContent += chunk;
@@ -122,7 +136,7 @@ export function Chat({ style }: ChatProps) {
 
       console.log(`[Clippy Chat] Final raw model response: ${fullContent}`);
       console.log(`[Clippy Chat] Final displayed response: ${filteredContent}`);
-      console.log(`[Clippy Chat] Animation was triggered: ${hasSetAnimationKey}`);
+      console.log(`[Clippy Chat] Animation was triggered: ${hasTriggeredAnimation}`);
       console.groupEnd();
 
       // Once streaming is complete, add the full message to the messages array
@@ -220,32 +234,36 @@ function getErrorMessage(error: unknown): string {
  * Filter the message content to get the text and animation key
  *
  * @param content - The content of the message
- * @returns The text, animation key, matched token, and parser state
+ * @returns The text, animation key, matched token, unsupported token, and parser state
  */
 function filterMessageContent(content: string): {
   text: string;
   animationKey: string;
   matchedToken: string;
+  unsupportedToken: string;
   parserState:
     | "waiting-for-token"
     | "partial-token"
     | "valid-token"
+    | "unsupported-token"
     | "no-animation-token";
 } {
   let text = content;
   let animationKey = "";
   let matchedToken = "";
+  let unsupportedToken = "";
   let parserState:
     | "waiting-for-token"
     | "partial-token"
     | "valid-token"
+    | "unsupported-token"
     | "no-animation-token" = "no-animation-token";
 
   if (content === "[") {
     text = "";
     parserState = "waiting-for-token";
-  } else if (/^\[[A-Za-z0-9 ]*$/m.test(content)) {
-    text = content.replace(/^\[[A-Za-z0-9 ]*$/m, "").trim();
+  } else if (/^\[[A-Za-z0-9 _-]*$/m.test(content)) {
+    text = content.replace(/^\[[A-Za-z0-9 _-]*$/m, "").trim();
     parserState = "partial-token";
   } else {
     // Check for animation keys in brackets
@@ -258,7 +276,17 @@ function filterMessageContent(content: string): {
         break;
       }
     }
+
+    if (!animationKey) {
+      const leadingBracketToken = content.match(/^\[([^\]\r\n]{1,80})\]/)?.[0];
+
+      if (leadingBracketToken) {
+        unsupportedToken = leadingBracketToken;
+        text = content.slice(leadingBracketToken.length).trimStart();
+        parserState = "unsupported-token";
+      }
+    }
   }
 
-  return { text, animationKey, matchedToken, parserState };
+  return { text, animationKey, matchedToken, unsupportedToken, parserState };
 }
