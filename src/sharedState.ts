@@ -6,6 +6,7 @@ export type DefaultFont =
   | "Tahoma"
   | "System Default";
 export type DefaultFontSize = number;
+export type LlmBackend = "local" | "openai-compatible";
 
 export interface SettingsState {
   selectedModel?: string;
@@ -14,6 +15,10 @@ export interface SettingsState {
   chatAlwaysOnTop?: boolean;
   alwaysOpenChat?: boolean;
   centerChatWindow?: boolean;
+  llmBackend?: LlmBackend;
+  remoteApiBaseUrl?: string;
+  remoteApiKey?: string;
+  remoteModelName?: string;
   topK?: number;
   temperature?: number;
   defaultFont: DefaultFont;
@@ -44,6 +49,10 @@ export const DEFAULT_SETTINGS: SettingsState = {
   chatAlwaysOnTop: true,
   alwaysOpenChat: true,
   centerChatWindow: false,
+  llmBackend: "local",
+  remoteApiBaseUrl: "",
+  remoteApiKey: "",
+  remoteModelName: "",
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   topK: 10,
   temperature: 0.7,
