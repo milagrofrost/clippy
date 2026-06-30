@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 import { ANIMATIONS, Animation } from "../clippy-animations";
 import {
@@ -24,7 +24,7 @@ const LEFT_RIGHT_ANIMATION_REMAP: Record<string, string> = {
 
 export function Clippy() {
   const {
-    animationKey,
+    animationRequest,
     status,
     setStatus,
     setIsChatWindowOpen,
@@ -32,76 +32,113 @@ export function Clippy() {
   } = useChat();
   const { enableDragDebug } = useDebugState();
   const [animation, setAnimation] = useState<Animation>(EMPTY_ANIMATION);
-  const [animationTimeoutId, setAnimationTimeoutId] = useState<
-    number | undefined
-  >(undefined);
+  const animationRef = useRef<Animation>(EMPTY_ANIMATION);
+  const statusRef = useRef(status);
+  const resetTimeoutRef = useRef<number | undefined>(undefined);
+  const idleTimeoutRef = useRef<number | undefined>(undefined);
 
-  const playAnimation = useCallback((key: string) => {
-    const resolvedKey = LEFT_RIGHT_ANIMATION_REMAP[key] || key;
-    const selectedAnimation = ANIMATIONS[resolvedKey];
+  const setCurrentAnimation = useCallback((nextAnimation: Animation) => {
+    animationRef.current = nextAnimation;
+    setAnimation(nextAnimation);
+  }, []);
 
-    if (selectedAnimation) {
-      log(`Playing animation`, { key, resolvedKey });
+  const clearAnimationTimers = useCallback(() => {
+    if (resetTimeoutRef.current) {
+      window.clearTimeout(resetTimeoutRef.current);
+      resetTimeoutRef.current = undefined;
+    }
 
-      if (animationTimeoutId) {
-        window.clearTimeout(animationTimeoutId);
-      }
-
-      setAnimation(selectedAnimation);
-      setAnimationTimeoutId(
-        window.setTimeout(() => {
-          setAnimation(ANIMATIONS.Default);
-        }, selectedAnimation.length + 200),
-      );
-    } else {
-      log(`Animation not found`, { key, resolvedKey });
+    if (idleTimeoutRef.current) {
+      window.clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = undefined;
     }
   }, []);
+
+  const playRandomIdleAnimation = useCallback(() => {
+    if (statusRef.current !== "idle") return;
+
+    clearAnimationTimers();
+
+    const randomIdleAnimation = getRandomIdleAnimation(animationRef.current);
+    setCurrentAnimation(randomIdleAnimation);
+
+    resetTimeoutRef.current = window.setTimeout(() => {
+      setCurrentAnimation(ANIMATIONS.Default);
+      resetTimeoutRef.current = undefined;
+
+      idleTimeoutRef.current = window.setTimeout(() => {
+        idleTimeoutRef.current = undefined;
+        playRandomIdleAnimation();
+      }, WAIT_TIME);
+    }, randomIdleAnimation.length);
+  }, [clearAnimationTimers, setCurrentAnimation]);
+
+  const playAnimation = useCallback(
+    (key: string) => {
+      if (!key) {
+        return;
+      }
+
+      const resolvedKey = LEFT_RIGHT_ANIMATION_REMAP[key] || key;
+      const selectedAnimation = ANIMATIONS[resolvedKey];
+
+      if (selectedAnimation) {
+        log(`Playing animation`, { key, resolvedKey });
+
+        clearAnimationTimers();
+        setCurrentAnimation(selectedAnimation);
+
+        resetTimeoutRef.current = window.setTimeout(() => {
+          setCurrentAnimation(ANIMATIONS.Default);
+          resetTimeoutRef.current = undefined;
+        }, selectedAnimation.length + 200);
+      } else {
+        log(`Animation not found`, { key, resolvedKey });
+      }
+    },
+    [clearAnimationTimers, setCurrentAnimation],
+  );
 
   const toggleChat = useCallback(() => {
     setIsChatWindowOpen(!isChatWindowOpen);
   }, [isChatWindowOpen, setIsChatWindowOpen]);
 
   useEffect(() => {
-    const playRandomIdleAnimation = () => {
-      if (status !== "idle") return;
-
-      const randomIdleAnimation = getRandomIdleAnimation(animation);
-      setAnimation(randomIdleAnimation);
-
-      // Reset back to default after 6 seconds and schedule next animation
-      setAnimationTimeoutId(
-        window.setTimeout(() => {
-          setAnimation(ANIMATIONS.Default);
-          setAnimationTimeoutId(
-            window.setTimeout(playRandomIdleAnimation, WAIT_TIME),
-          );
-        }, randomIdleAnimation.length),
-      );
-    };
-
-    if (status === "welcome" && animation === EMPTY_ANIMATION) {
-      setAnimation(ANIMATIONS.Show);
-      setTimeout(() => {
-        setStatus("idle");
-      }, ANIMATIONS.Show.length + 200);
-    } else if (status === "idle") {
-      if (!animationTimeoutId) {
-        playRandomIdleAnimation();
-      }
-    }
-
-    return () => {
-      if (animationTimeoutId) {
-        window.clearTimeout(animationTimeoutId);
-      }
-    };
+    statusRef.current = status;
   }, [status]);
 
   useEffect(() => {
-    log(`New animation key`, { animationKey });
-    playAnimation(animationKey);
-  }, [animationKey, playAnimation]);
+    if (status === "welcome" && animationRef.current === EMPTY_ANIMATION) {
+      clearAnimationTimers();
+      setCurrentAnimation(ANIMATIONS.Show);
+
+      resetTimeoutRef.current = window.setTimeout(() => {
+        resetTimeoutRef.current = undefined;
+        setStatus("idle");
+      }, ANIMATIONS.Show.length + 200);
+    } else if (status === "idle") {
+      if (!resetTimeoutRef.current && !idleTimeoutRef.current) {
+        playRandomIdleAnimation();
+      }
+    } else {
+      clearAnimationTimers();
+    }
+
+    return () => {
+      clearAnimationTimers();
+    };
+  }, [
+    status,
+    clearAnimationTimers,
+    playRandomIdleAnimation,
+    setCurrentAnimation,
+    setStatus,
+  ]);
+
+  useEffect(() => {
+    log(`New animation key`, { animationRequest });
+    playAnimation(animationRequest.key);
+  }, [animationRequest.id, playAnimation]);
 
   return (
     <div>
