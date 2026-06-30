@@ -79,9 +79,9 @@ export function setupWindowListener() {
   app.on(
     "browser-window-created",
     (_event: Electron.Event, browserWindow: BrowserWindow) => {
-      const isMainWindow = !browserWindow.getParentWindow();
+      const isMainWindow = browserWindow === mainWindow;
 
-      getLogger().info(`Creating window (${isMainWindow ? "main" : "child"})`);
+      getLogger().info(`Creating window (${isMainWindow ? "main" : "chat/child"})`);
 
       setupWindowOpenHandler(browserWindow);
       setupNavigationHandler(browserWindow);
@@ -103,6 +103,7 @@ export function setupWindowListener() {
         setFont(getStateManager().store.get("settings").defaultFont, [
           browserWindow,
         ]);
+        forceChatWindowPlacement(browserWindow);
       });
     },
   );
@@ -137,11 +138,13 @@ export function setupWindowOpenHandler(browserWindow: BrowserWindow) {
       action: "allow",
       overrideBrowserWindowOptions: {
         frame: false,
+        width,
+        height,
         x: newWindowPosition?.x,
         y: newWindowPosition?.y,
         roundedCorners: false,
-        minHeight: Math.min(400, height),
-        minWidth: Math.min(400, width),
+        minHeight: Math.min(300, height),
+        minWidth: Math.min(300, width),
         alwaysOnTop: settings.chatAlwaysOnTop,
         parent: settings.centerChatWindow ? undefined : browserWindow,
       },
@@ -179,24 +182,22 @@ function getChatWindowPosition(
   const settings = getStateManager().store.get("settings");
 
   return settings.centerChatWindow
-    ? getCenteredWindowPosition(browserWindow, size)
+    ? getCenteredWindowPosition(size)
     : getPopoverWindowPosition(browserWindow, size);
 }
 
 /**
- * Get the new window position centered on the current display
+ * Get the new window position centered on the primary display
  *
- * @param browserWindow The browser window used to determine the current display
  * @param size The size of the new window
  * @returns The centered window position
  */
-export function getCenteredWindowPosition(
-  browserWindow: BrowserWindow,
-  size: { width: number; height: number },
-): { x: number; y: number } {
+export function getCenteredWindowPosition(size: {
+  width: number;
+  height: number;
+}): { x: number; y: number } {
   const { width, height } = size;
-  const display = getDisplayForWindow(browserWindow);
-  const area = display.workArea;
+  const area = screen.getPrimaryDisplay().workArea;
 
   const x = Math.round(area.x + (area.width - width) / 2);
   const y = Math.round(area.y + (area.height - height) / 2);
@@ -246,6 +247,28 @@ export function getPopoverWindowPosition(
   }
 
   return { x, y };
+}
+
+function forceChatWindowPlacement(browserWindow: BrowserWindow) {
+  if (!isChatWindow(browserWindow)) {
+    return;
+  }
+
+  const settings = getStateManager().store.get("settings");
+
+  if (!settings.centerChatWindow) {
+    return;
+  }
+
+  const width = settings.chatWindowWidth || browserWindow.getSize()[0];
+  const height = settings.chatWindowHeight || browserWindow.getSize()[1];
+  const position = getCenteredWindowPosition({ width, height });
+
+  browserWindow.setSize(width, height);
+  browserWindow.setPosition(position.x, position.y);
+  getLogger().info(
+    `Centered chat window at ${position.x},${position.y} with size ${width}x${height}`,
+  );
 }
 
 function clamp(value: number, min: number, max: number): number {
