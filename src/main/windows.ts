@@ -125,6 +125,7 @@ export function setupWindowOpenHandler(browserWindow: BrowserWindow) {
 
     const width = parseInt(features.match(/width=(\d+)/)?.[1] || "400", 10);
     const height = parseInt(features.match(/height=(\d+)/)?.[1] || "600", 10);
+    const settings = getStateManager().store.get("settings");
     const shouldPositionNextToParent = features.includes(
       "positionNextToParent",
     );
@@ -139,10 +140,10 @@ export function setupWindowOpenHandler(browserWindow: BrowserWindow) {
         x: newWindowPosition?.x,
         y: newWindowPosition?.y,
         roundedCorners: false,
-        minHeight: 400,
-        minWidth: 400,
-        alwaysOnTop: getStateManager().store.get("settings").chatAlwaysOnTop,
-        parent: browserWindow,
+        minHeight: Math.min(400, height),
+        minWidth: Math.min(400, width),
+        alwaysOnTop: settings.chatAlwaysOnTop,
+        parent: settings.centerChatWindow ? undefined : browserWindow,
       },
     };
   });
@@ -201,8 +202,8 @@ export function getCenteredWindowPosition(
   const y = Math.round(area.y + (area.height - height) / 2);
 
   return {
-    x: Math.max(area.x, x),
-    y: Math.max(area.y, y),
+    x: clamp(x, area.x, area.x + area.width - width),
+    y: clamp(y, area.y, area.y + area.height - height),
   };
 }
 
@@ -247,6 +248,14 @@ export function getPopoverWindowPosition(
   return { x, y };
 }
 
+function clamp(value: number, min: number, max: number): number {
+  if (max < min) {
+    return min;
+  }
+
+  return Math.min(Math.max(value, min), max);
+}
+
 /**
  * Get the chat window
  *
@@ -260,7 +269,7 @@ export function getChatWindow(): BrowserWindow | undefined {
  * Check if a window is a chat window
  *
  * @param window The window to check
- * @returns True if the window is a chat window
+ * @returns True if a window is a chat window
  */
 function isChatWindow(window: BrowserWindow): boolean {
   return window.webContents.getTitle() === "Clippy Chat";
