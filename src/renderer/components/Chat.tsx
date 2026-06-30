@@ -6,6 +6,10 @@ import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
 import { useChat } from "../contexts/ChatContext";
 import { useSharedState } from "../contexts/SharedStateContext";
 import { electronAi } from "../clippyApi";
+import {
+  abortRemoteRequest,
+  promptOpenAiCompatibleStreaming,
+} from "../llm/openAiCompatibleClient";
 
 export type ChatProps = {
   style?: React.CSSProperties;
@@ -22,6 +26,11 @@ export function Chat({ style }: ChatProps) {
   );
 
   const handleAbortMessage = () => {
+    if (settings.llmBackend === "openai-compatible") {
+      abortRemoteRequest(lastRequestUUID);
+      return;
+    }
+
     electronAi.abortRequest(lastRequestUUID);
   };
 
@@ -45,12 +54,9 @@ export function Chat({ style }: ChatProps) {
       const requestUUID = crypto.randomUUID();
       setLastRequestUUID(requestUUID);
 
-      const response = await window.electronAi.promptStreaming(
-        getPromptWithSystemInstructions(message, settings.systemPrompt),
-        {
-          requestUUID,
-        },
-      );
+      const response = getPromptStreamingResponse(message, messages, settings, {
+        requestUUID,
+      });
 
       let fullContent = "";
       let filteredContent = "";
@@ -92,6 +98,13 @@ export function Chat({ style }: ChatProps) {
       addMessage(assistantMessage);
     } catch (error) {
       console.error(error);
+
+      addMessage({
+        id: crypto.randomUUID(),
+        content: `Remote model error: ${getErrorMessage(error)}`,
+        sender: "clippy",
+        createdAt: Date.now(),
+      });
     } finally {
       setStreamingMessageContent("");
       setStatus("idle");
@@ -118,6 +131,22 @@ export function Chat({ style }: ChatProps) {
   );
 }
 
+function getPromptStreamingResponse(
+  userMessage: string,
+  messages: Message[],
+  settings: ReturnType<typeof useSharedState>["settings"],
+  options: { requestUUID: string },
+): AsyncIterable<string> {
+  if (settings.llmBackend === "openai-compatible") {
+    return promptOpenAiCompatibleStreaming(userMessage, messages, settings, options);
+  }
+
+  return window.electronAi.promptStreaming(
+    getPromptWithSystemInstructions(userMessage, settings.systemPrompt),
+    options,
+  );
+}
+
 function getPromptWithSystemInstructions(
   userMessage: string,
   systemPrompt?: string,
@@ -132,6 +161,14 @@ function getPromptWithSystemInstructions(
   );
 
   return `<system_instructions>\n${resolvedSystemPrompt}\n</system_instructions>\n\n<user_message>\n${userMessage}\n</user_message>`;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }
 
 /**
