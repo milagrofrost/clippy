@@ -6,6 +6,7 @@ import { clippyApi } from "../clippyApi";
 import { prettyDownloadSpeed } from "../helpers/convert-download-speed";
 import { ManagedModel } from "../../models";
 import { isModelDownloading } from "../../helpers/model-helpers";
+import { SettingsState } from "../../sharedState";
 
 export const SettingsModel: React.FC = () => {
   const { models, settings } = useSharedState();
@@ -185,6 +186,10 @@ const RemoteModelSettings: React.FC = () => {
     settings.remoteModelName || "",
   );
   const [remoteApiKey, setRemoteApiKey] = useState(settings.remoteApiKey || "");
+  const [testStatus, setTestStatus] = useState<
+    "idle" | "testing" | "success" | "error"
+  >("idle");
+  const [testMessage, setTestMessage] = useState("");
 
   useEffect(() => {
     setRemoteApiBaseUrl(settings.remoteApiBaseUrl || "");
@@ -192,10 +197,35 @@ const RemoteModelSettings: React.FC = () => {
     setRemoteApiKey(settings.remoteApiKey || "");
   }, [settings.remoteApiBaseUrl, settings.remoteModelName, settings.remoteApiKey]);
 
+  const getDraftSettings = (): SettingsState => ({
+    ...settings,
+    remoteApiBaseUrl,
+    remoteModelName,
+    remoteApiKey,
+  });
+
   const handleSave = async () => {
     await clippyApi.setState("settings.remoteApiBaseUrl", remoteApiBaseUrl);
     await clippyApi.setState("settings.remoteModelName", remoteModelName);
     await clippyApi.setState("settings.remoteApiKey", remoteApiKey);
+  };
+
+  const handleTestConnection = async () => {
+    setTestStatus("testing");
+    setTestMessage("Testing remote API...");
+
+    try {
+      await handleSave();
+      const responseText = await testOpenAiCompatibleConnection(getDraftSettings());
+
+      setTestStatus("success");
+      setTestMessage(
+        `Connection successful${responseText ? `: ${responseText}` : "."}`,
+      );
+    } catch (error) {
+      setTestStatus("error");
+      setTestMessage(getErrorMessage(error));
+    }
   };
 
   return (
@@ -213,7 +243,11 @@ const RemoteModelSettings: React.FC = () => {
           placeholder="http://10.10.101.10:11434/v1"
           value={remoteApiBaseUrl}
           onBlur={handleSave}
-          onChange={(e) => setRemoteApiBaseUrl(e.target.value)}
+          onChange={(e) => {
+            setRemoteApiBaseUrl(e.target.value);
+            setTestStatus("idle");
+            setTestMessage("");
+          }}
         />
       </div>
       <div className="field-row-stacked">
@@ -224,7 +258,11 @@ const RemoteModelSettings: React.FC = () => {
           placeholder="llama3.2, qwen2.5:0.5b, gpt-4o-mini"
           value={remoteModelName}
           onBlur={handleSave}
-          onChange={(e) => setRemoteModelName(e.target.value)}
+          onChange={(e) => {
+            setRemoteModelName(e.target.value);
+            setTestStatus("idle");
+            setTestMessage("");
+          }}
         />
       </div>
       <div className="field-row-stacked">
@@ -235,15 +273,106 @@ const RemoteModelSettings: React.FC = () => {
           placeholder="Optional for local Ollama/llama.cpp servers"
           value={remoteApiKey}
           onBlur={handleSave}
-          onChange={(e) => setRemoteApiKey(e.target.value)}
+          onChange={(e) => {
+            setRemoteApiKey(e.target.value);
+            setTestStatus("idle");
+            setTestMessage("");
+          }}
         />
       </div>
-      <button style={{ marginTop: "10px" }} onClick={handleSave}>
-        Save Remote Settings
-      </button>
+      <div style={{ marginTop: "10px", display: "flex", gap: "10px" }}>
+        <button onClick={handleSave}>Save Remote Settings</button>
+        <button
+          disabled={testStatus === "testing"}
+          onClick={handleTestConnection}
+        >
+          {testStatus === "testing" ? "Testing..." : "Test Connection"}
+        </button>
+      </div>
+      {testMessage && (
+        <p
+          style={{
+            marginTop: "10px",
+            fontWeight: "bold",
+            color: testStatus === "error" ? "#a80000" : undefined,
+          }}
+        >
+          {testMessage}
+        </p>
+      )}
     </fieldset>
   );
 };
+
+async function testOpenAiCompatibleConnection(
+  settings: SettingsState,
+): Promise<string> {
+  const apiBaseUrl = normalizeApiBaseUrl(settings.remoteApiBaseUrl);
+  const model = settings.remoteModelName?.trim();
+
+  if (!apiBaseUrl) {
+    throw new Error("API Base URL is required.");
+  }
+
+  if (!model) {
+    throw new Error("Model Name is required.");
+  }
+
+  const response = await fetch(`${apiBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: getRemoteHeaders(settings.remoteApiKey),
+    body: JSON.stringify({
+      model,
+      stream: false,
+      max_tokens: 8,
+      messages: [
+        {
+          role: "user",
+          content: "Reply with OK only.",
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Remote API test failed (${response.status} ${response.statusText})${
+        errorText ? `: ${errorText}` : ""
+      }`,
+    );
+  }
+
+  const data = await response.json();
+  const responseText = data.choices?.[0]?.message?.content?.trim();
+
+  return responseText || "OK";
+}
+
+function normalizeApiBaseUrl(apiBaseUrl?: string): string {
+  return (apiBaseUrl || "").trim().replace(/\/+$/, "");
+}
+
+function getRemoteHeaders(apiKey?: string): HeadersInit {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+  const trimmedApiKey = apiKey?.trim();
+
+  if (trimmedApiKey) {
+    headers.Authorization = `Bearer ${trimmedApiKey}`;
+  }
+
+  return headers;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
 
 const SettingsModelDownload: React.FC<{
   model?: ManagedModel;
