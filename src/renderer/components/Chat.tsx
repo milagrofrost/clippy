@@ -16,6 +16,7 @@ import {
 import { SettingsState } from "../../sharedState";
 
 const RESPONSE_LOG_PREVIEW_LENGTH = 300;
+const DEFAULT_FALLBACK_ANIMATION = "Thinking";
 
 export type ChatProps = {
   style?: React.CSSProperties;
@@ -63,6 +64,7 @@ export function Chat({ style }: ChatProps) {
       animationKey: "",
       matchedToken: "",
       unsupportedToken: "",
+      fallbackKey: "",
       triggered: false,
     };
 
@@ -96,6 +98,7 @@ export function Chat({ style }: ChatProps) {
             animationKey: filterResult.animationKey,
             matchedToken: filterResult.matchedToken,
             unsupportedToken: filterResult.unsupportedToken,
+            fallbackKey: "",
             triggered: false,
           };
 
@@ -107,6 +110,13 @@ export function Chat({ style }: ChatProps) {
             filterResult.unsupportedToken ||
             filterResult.parserState === "no-animation-token"
           ) {
+            const fallbackKey = getFallbackAnimationKey(
+              filterResult.text,
+              message,
+            );
+
+            setAnimationKey(fallbackKey);
+            animationDebug.fallbackKey = fallbackKey;
             hasFinishedAnimationParsing = true;
           }
         } else {
@@ -115,6 +125,12 @@ export function Chat({ style }: ChatProps) {
         }
 
         setStreamingMessageContent(filteredContent);
+      }
+
+      if (!animationDebug.triggered && !animationDebug.fallbackKey) {
+        const fallbackKey = getFallbackAnimationKey(filteredContent, message);
+        setAnimationKey(fallbackKey);
+        animationDebug.fallbackKey = fallbackKey;
       }
 
       logChatResponseSummary(fullContent, filteredContent, animationDebug);
@@ -190,7 +206,7 @@ function getPromptWithSystemInstructions(
   systemPrompt?: string,
 ): string {
   if (!systemPrompt) {
-    return userMessage;
+    return `${getLocalAnimationReminder()}\n\n${userMessage}`;
   }
 
   const resolvedSystemPrompt = systemPrompt.replace(
@@ -198,7 +214,15 @@ function getPromptWithSystemInstructions(
     ANIMATION_PROMPT_CONTEXT,
   );
 
-  return `<system_instructions>\n${resolvedSystemPrompt}\n</system_instructions>\n\n<user_message>\n${userMessage}\n</user_message>`;
+  return `<system_instructions>\n${resolvedSystemPrompt}\n\n${getLocalAnimationReminder()}\n</system_instructions>\n\n<user_message>\n${userMessage}\n</user_message>`;
+}
+
+function getLocalAnimationReminder(): string {
+  return `Animation reminder for this response:
+Begin with exactly one supported animation token, such as [Thinking].
+The animation token must be the first non-whitespace text in the response.
+Do not omit the animation token.
+Do not explain the animation token.`;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -222,6 +246,7 @@ type AnimationDebugResult = {
   animationKey: string;
   matchedToken: string;
   unsupportedToken: string;
+  fallbackKey: string;
   triggered: boolean;
 };
 
@@ -278,6 +303,36 @@ function filterMessageContent(content: string): {
   return { text, animationKey, matchedToken, unsupportedToken, parserState };
 }
 
+function getFallbackAnimationKey(responseText: string, userMessage: string): string {
+  const combinedText = `${userMessage}\n${responseText}`.toLowerCase();
+
+  if (/\b(error|fail|failed|broken|warning|careful|danger|problem|issue)\b/.test(combinedText)) {
+    return "GetAttention";
+  }
+
+  if (/\b(search|find|look up|lookup|investigate|research)\b/.test(combinedText)) {
+    return "Searching";
+  }
+
+  if (/\b(write|draft|message|email|post|compose|wording)\b/.test(combinedText)) {
+    return "Writing";
+  }
+
+  if (/\b(save|saved|saving|config|setting|backup|preserve)\b/.test(combinedText)) {
+    return "Save";
+  }
+
+  if (/\b(done|worked|success|fixed|nice|great|congrats)\b/.test(combinedText)) {
+    return "Congratulate";
+  }
+
+  if (/\b(explain|because|why|how|means|meaning)\b/.test(combinedText)) {
+    return "Explain";
+  }
+
+  return DEFAULT_FALLBACK_ANIMATION;
+}
+
 function logChatResponseSummary(
   rawResponse: string,
   displayedResponse: string,
@@ -289,6 +344,10 @@ function logChatResponseSummary(
   if (animationDebug.triggered) {
     console.log(
       `[Clippy Chat] Animation: triggered ${animationDebug.animationKey} from ${animationDebug.matchedToken}`,
+    );
+  } else if (animationDebug.fallbackKey) {
+    console.warn(
+      `[Clippy Chat] Animation: fallback ${animationDebug.fallbackKey} (${animationDebug.parserState})`,
     );
   } else if (animationDebug.unsupportedToken) {
     console.warn(
