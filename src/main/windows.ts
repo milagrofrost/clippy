@@ -83,6 +83,7 @@ export function setupWindowListener() {
 
       getLogger().info(`Creating window (${isMainWindow ? "main" : "chat/child"})`);
 
+      setupRendererConsoleForwarding(browserWindow);
       setupWindowOpenHandler(browserWindow);
       setupNavigationHandler(browserWindow);
 
@@ -155,6 +156,33 @@ export function setupWindowOpenHandler(browserWindow: BrowserWindow) {
       },
     };
   });
+}
+
+function setupRendererConsoleForwarding(browserWindow: BrowserWindow) {
+  browserWindow.webContents.on(
+    "console-message",
+    (
+      _event: Electron.Event,
+      level: number,
+      message: string,
+      line: number,
+      sourceId: string,
+    ) => {
+      const title = browserWindow.isDestroyed()
+        ? "destroyed"
+        : browserWindow.webContents.getTitle() || "untitled";
+      const source = sourceId ? `${sourceId}:${line}` : `line ${line}`;
+      const renderedMessage = `[Renderer:${title}] ${message} (${source})`;
+
+      if (level >= 2) {
+        getLogger().error(renderedMessage);
+      } else if (level === 1) {
+        getLogger().warn(renderedMessage);
+      } else {
+        getLogger().info(renderedMessage);
+      }
+    },
+  );
 }
 
 function setupNavigationHandler(browserWindow: BrowserWindow) {
