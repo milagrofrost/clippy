@@ -32,7 +32,7 @@ export function App() {
               }}
             >
               <Clippy />
-              <WindowPortal width={450} height={650}>
+              <WindowPortal>
                 <Bubble />
               </WindowPortal>
             </div>
