@@ -12,6 +12,8 @@ import {
 } from "../llm/openAiCompatibleClient";
 import { SettingsState } from "../../sharedState";
 
+const RESPONSE_LOG_PREVIEW_LENGTH = 300;
+
 export type ChatProps = {
   style?: React.CSSProperties;
 };
@@ -51,79 +53,57 @@ export function Chat({ style }: ChatProps) {
     setStreamingMessageContent("");
     setStatus("thinking");
 
+    let fullContent = "";
+    let filteredContent = "";
+    let animationDebug: AnimationDebugResult = {
+      parserState: "not-parsed",
+      animationKey: "",
+      matchedToken: "",
+      unsupportedToken: "",
+      triggered: false,
+    };
+
     try {
       const requestUUID = crypto.randomUUID();
       setLastRequestUUID(requestUUID);
 
-      console.groupCollapsed(
-        `[Clippy Chat] Request ${requestUUID} animation parsing`,
+      console.log(
+        `[Clippy Chat] Request ${requestUUID}: user=${JSON.stringify(message)} backend=${settings.llmBackend || "local"}`,
       );
-      console.log(`[Clippy Chat] User message: ${message}`);
-      console.log(`[Clippy Chat] LLM backend: ${settings.llmBackend || "local"}`);
 
       const response = getPromptStreamingResponse(message, messages, settings, {
         requestUUID,
       });
 
-      let fullContent = "";
-      let filteredContent = "";
       let hasFinishedAnimationParsing = false;
-      let hasTriggeredAnimation = false;
-      let hasLoggedNoAnimationYet = false;
-      let chunkIndex = 0;
 
       for await (const chunk of response) {
-        chunkIndex += 1;
-        console.log(`[Clippy Chat] Raw chunk ${chunkIndex}: ${chunk}`);
-
         if (fullContent === "") {
           setStatus("responding");
         }
 
         if (!hasFinishedAnimationParsing) {
           const contentToParse = fullContent + chunk;
-          const {
-            text,
-            animationKey,
-            matchedToken,
-            parserState,
-            unsupportedToken,
-          } = filterMessageContent(contentToParse);
+          const filterResult = filterMessageContent(contentToParse);
 
-          console.log(`[Clippy Chat] Raw accumulated response: ${contentToParse}`);
-          console.log(
-            `[Clippy Chat] Animation parser result: ${JSON.stringify({
-              parserState,
-              matchedToken,
-              unsupportedToken,
-              animationKey,
-              filteredTextPreview: text.slice(0, 200),
-            })}`,
-          );
-
-          filteredContent = text;
+          filteredContent = filterResult.text;
           fullContent = contentToParse;
+          animationDebug = {
+            parserState: filterResult.parserState,
+            animationKey: filterResult.animationKey,
+            matchedToken: filterResult.matchedToken,
+            unsupportedToken: filterResult.unsupportedToken,
+            triggered: false,
+          };
 
-          if (animationKey) {
-            console.log(
-              `[Clippy Chat] Triggering animation: ${animationKey} from token ${matchedToken}`,
-            );
-            setAnimationKey(animationKey);
-            hasTriggeredAnimation = true;
-            hasFinishedAnimationParsing = true;
-          } else if (unsupportedToken) {
-            console.warn(
-              `[Clippy Chat] Unsupported animation token stripped from response: ${unsupportedToken}`,
-            );
+          if (filterResult.animationKey) {
+            setAnimationKey(filterResult.animationKey);
+            animationDebug.triggered = true;
             hasFinishedAnimationParsing = true;
           } else if (
-            parserState === "no-animation-token" &&
-            !hasLoggedNoAnimationYet
+            filterResult.unsupportedToken ||
+            filterResult.parserState === "no-animation-token"
           ) {
-            console.warn(
-              "[Clippy Chat] No valid animation token detected at the start of the response yet.",
-            );
-            hasLoggedNoAnimationYet = true;
             hasFinishedAnimationParsing = true;
           }
         } else {
@@ -134,10 +114,7 @@ export function Chat({ style }: ChatProps) {
         setStreamingMessageContent(filteredContent);
       }
 
-      console.log(`[Clippy Chat] Final raw model response: ${fullContent}`);
-      console.log(`[Clippy Chat] Final displayed response: ${filteredContent}`);
-      console.log(`[Clippy Chat] Animation was triggered: ${hasTriggeredAnimation}`);
-      console.groupEnd();
+      logChatResponseSummary(fullContent, filteredContent, animationDebug);
 
       // Once streaming is complete, add the full message to the messages array
       // and clear the streaming message
@@ -151,7 +128,6 @@ export function Chat({ style }: ChatProps) {
       addMessage(assistantMessage);
     } catch (error) {
       console.error(error);
-      console.groupEnd();
 
       addMessage({
         id: crypto.randomUUID(),
@@ -230,6 +206,22 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
+type AnimationParserState =
+  | "not-parsed"
+  | "waiting-for-token"
+  | "partial-token"
+  | "valid-token"
+  | "unsupported-token"
+  | "no-animation-token";
+
+type AnimationDebugResult = {
+  parserState: AnimationParserState;
+  animationKey: string;
+  matchedToken: string;
+  unsupportedToken: string;
+  triggered: boolean;
+};
+
 /**
  * Filter the message content to get the text and animation key
  *
@@ -241,52 +233,80 @@ function filterMessageContent(content: string): {
   animationKey: string;
   matchedToken: string;
   unsupportedToken: string;
-  parserState:
-    | "waiting-for-token"
-    | "partial-token"
-    | "valid-token"
-    | "unsupported-token"
-    | "no-animation-token";
+  parserState: AnimationParserState;
 } {
+  const trimmedContent = content.trimStart();
   let text = content;
   let animationKey = "";
   let matchedToken = "";
   let unsupportedToken = "";
-  let parserState:
-    | "waiting-for-token"
-    | "partial-token"
-    | "valid-token"
-    | "unsupported-token"
-    | "no-animation-token" = "no-animation-token";
+  let parserState: AnimationParserState = "no-animation-token";
 
-  if (content === "[") {
+  if (trimmedContent === "[") {
     text = "";
     parserState = "waiting-for-token";
-  } else if (/^\[[A-Za-z0-9 _-]*$/m.test(content)) {
-    text = content.replace(/^\[[A-Za-z0-9 _-]*$/m, "").trim();
+  } else if (/^\[[A-Za-z0-9 _-]*$/m.test(trimmedContent)) {
+    text = "";
     parserState = "partial-token";
   } else {
-    // Check for animation keys in brackets
+    // Check for animation keys in brackets. Leading whitespace is ignored so
+    // streamed responses like " [Alert] ..." still trigger properly.
     for (const key of ANIMATION_KEYS_BRACKETS) {
-      if (content.startsWith(key)) {
+      if (trimmedContent.startsWith(key)) {
         animationKey = key.slice(1, -1);
         matchedToken = key;
-        text = content.slice(key.length).trim();
+        text = trimmedContent.slice(key.length).trimStart();
         parserState = "valid-token";
         break;
       }
     }
 
     if (!animationKey) {
-      const leadingBracketToken = content.match(/^\[([^\]\r\n]{1,80})\]/)?.[0];
+      const leadingBracketToken = trimmedContent.match(/^\[([^\]\r\n]{1,80})\]/)?.[0];
 
       if (leadingBracketToken) {
         unsupportedToken = leadingBracketToken;
-        text = content.slice(leadingBracketToken.length).trimStart();
+        text = trimmedContent.slice(leadingBracketToken.length).trimStart();
         parserState = "unsupported-token";
       }
     }
   }
 
   return { text, animationKey, matchedToken, unsupportedToken, parserState };
+}
+
+function logChatResponseSummary(
+  rawResponse: string,
+  displayedResponse: string,
+  animationDebug: AnimationDebugResult,
+) {
+  const rawPreview = getLogPreview(rawResponse);
+  const displayedPreview = getLogPreview(displayedResponse);
+
+  if (animationDebug.triggered) {
+    console.log(
+      `[Clippy Chat] Animation: triggered ${animationDebug.animationKey} from ${animationDebug.matchedToken}`,
+    );
+  } else if (animationDebug.unsupportedToken) {
+    console.warn(
+      `[Clippy Chat] Animation: unsupported token stripped ${animationDebug.unsupportedToken}`,
+    );
+  } else {
+    console.log(
+      `[Clippy Chat] Animation: none detected (${animationDebug.parserState})`,
+    );
+  }
+
+  console.log(`[Clippy Chat] Raw response preview: ${JSON.stringify(rawPreview)}`);
+  console.log(
+    `[Clippy Chat] Displayed response preview: ${JSON.stringify(displayedPreview)}`,
+  );
+}
+
+function getLogPreview(content: string): string {
+  if (content.length <= RESPONSE_LOG_PREVIEW_LENGTH) {
+    return content;
+  }
+
+  return `${content.slice(0, RESPONSE_LOG_PREVIEW_LENGTH)}...`;
 }
