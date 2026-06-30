@@ -90,6 +90,7 @@ export function setupWindowListener() {
         contextMenu({
           window: browserWindow,
         });
+        scheduleChatWindowPlacement(browserWindow);
       }
 
       if (getDebugManager().store.get("openDevToolsOnStart")) {
@@ -103,7 +104,7 @@ export function setupWindowListener() {
         setFont(getStateManager().store.get("settings").defaultFont, [
           browserWindow,
         ]);
-        forceChatWindowPlacement(browserWindow);
+        scheduleChatWindowPlacement(browserWindow);
       });
     },
   );
@@ -133,6 +134,10 @@ export function setupWindowOpenHandler(browserWindow: BrowserWindow) {
     const newWindowPosition = shouldPositionNextToParent
       ? getChatWindowPosition(browserWindow, { width, height })
       : undefined;
+
+    getLogger().info(
+      `Initial chat window position request: ${newWindowPosition?.x},${newWindowPosition?.y} size ${width}x${height}`,
+    );
 
     return {
       action: "allow",
@@ -249,8 +254,23 @@ export function getPopoverWindowPosition(
   return { x, y };
 }
 
-function forceChatWindowPlacement(browserWindow: BrowserWindow) {
+function scheduleChatWindowPlacement(browserWindow: BrowserWindow) {
+  const delays = [0, 50, 150, 300, 600];
+
+  for (const delay of delays) {
+    setTimeout(() => forceChatWindowPlacement(browserWindow, delay), delay);
+  }
+}
+
+function forceChatWindowPlacement(browserWindow: BrowserWindow, delay = 0) {
+  if (browserWindow.isDestroyed()) {
+    return;
+  }
+
   if (!isChatWindow(browserWindow)) {
+    getLogger().info(
+      `Skipping placement after ${delay}ms for non-chat window titled "${browserWindow.webContents.getTitle()}"`,
+    );
     return;
   }
 
@@ -267,7 +287,7 @@ function forceChatWindowPlacement(browserWindow: BrowserWindow) {
   browserWindow.setSize(width, height);
   browserWindow.setPosition(position.x, position.y);
   getLogger().info(
-    `Centered chat window at ${position.x},${position.y} with size ${width}x${height}`,
+    `Centered chat window after ${delay}ms at ${position.x},${position.y} with size ${width}x${height}; actual bounds ${JSON.stringify(browserWindow.getBounds())}`,
   );
 }
 
