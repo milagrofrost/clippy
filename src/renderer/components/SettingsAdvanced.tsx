@@ -21,6 +21,45 @@ export const SettingsAdvanced: React.FC = () => {
           Open the chat window in the center of the display instead of next to
           Clippy.
         </p>
+        <div className="field-row-stacked" style={{ marginTop: "10px" }}>
+          <label htmlFor="chatWindowWidth">Chat window width</label>
+          <input
+            id="chatWindowWidth"
+            type="number"
+            min={300}
+            max={1200}
+            step={10}
+            value={settings.chatWindowWidth || 500}
+            onChange={(event) => {
+              clippyApi.setState(
+                "settings.chatWindowWidth",
+                parseInt(event.target.value, 10),
+              );
+            }}
+          />
+        </div>
+        <div className="field-row-stacked">
+          <label htmlFor="chatWindowHeight">Chat window height</label>
+          <input
+            id="chatWindowHeight"
+            type="number"
+            min={250}
+            max={1000}
+            step={10}
+            value={settings.chatWindowHeight || 360}
+            onChange={(event) => {
+              clippyApi.setState(
+                "settings.chatWindowHeight",
+                parseInt(event.target.value, 10),
+              );
+            }}
+          />
+        </div>
+        <p style={{ marginTop: "10px" }}>
+          The new size applies the next time the chat window is created. Close
+          and restart Clippy after changing this if the chat window is already
+          open.
+        </p>
       </fieldset>
       <fieldset>
         <legend>Automatic Updates</legend>
