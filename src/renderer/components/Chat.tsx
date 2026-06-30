@@ -135,8 +135,6 @@ export function Chat({ style }: ChatProps) {
 
       logChatResponseSummary(fullContent, filteredContent, animationDebug);
 
-      // Once streaming is complete, add the full message to the messages array
-      // and clear the streaming message
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         content: filteredContent,
@@ -250,12 +248,6 @@ type AnimationDebugResult = {
   triggered: boolean;
 };
 
-/**
- * Filter the message content to get the text and animation key
- *
- * @param content - The content of the message
- * @returns The text, animation key, matched token, unsupported token, and parser state
- */
 function filterMessageContent(content: string): {
   text: string;
   animationKey: string;
@@ -270,15 +262,16 @@ function filterMessageContent(content: string): {
   let unsupportedToken = "";
   let parserState: AnimationParserState = "no-animation-token";
 
-  if (trimmedContent === "[") {
+  if (trimmedContent === "") {
+    text = "";
+    parserState = "waiting-for-token";
+  } else if (trimmedContent === "[") {
     text = "";
     parserState = "waiting-for-token";
   } else if (/^\[[A-Za-z0-9 _-]*$/m.test(trimmedContent)) {
     text = "";
     parserState = "partial-token";
   } else {
-    // Check for animation keys in brackets. Leading whitespace is ignored so
-    // streamed responses like " [Alert] ..." still trigger properly.
     for (const key of ANIMATION_KEYS_BRACKETS) {
       if (trimmedContent.startsWith(key)) {
         animationKey = key.slice(1, -1);
@@ -306,7 +299,7 @@ function filterMessageContent(content: string): {
 function getFallbackAnimationKey(responseText: string, userMessage: string): string {
   const combinedText = `${userMessage}\n${responseText}`.toLowerCase();
 
-  if (/\b(error|fail|failed|broken|warning|careful|danger|problem|issue)\b/.test(combinedText)) {
+  if (/\b(error|fail|failed|broken|warning|careful|problem|issue)\b/.test(combinedText)) {
     return "GetAttention";
   }
 
