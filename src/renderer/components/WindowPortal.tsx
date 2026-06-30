@@ -4,6 +4,7 @@ import ReactDOM from "react-dom";
 import { clippyApi } from "../clippyApi";
 import { WindowContext } from "../contexts/WindowContext";
 import { useChat } from "../contexts/ChatContext";
+import { useSharedState } from "../contexts/SharedStateContext";
 
 interface WindowPortalProps {
   children: React.ReactNode;
@@ -21,13 +22,16 @@ let isInitialized = false;
 
 export function WindowPortal({
   children,
-  width = 400,
-  height = 700,
+  width,
+  height,
   title = "Clippy Chat",
 }: WindowPortalProps) {
   const [externalWindow, setExternalWindow] = useState<Window | null>(null);
   const { isChatWindowOpen, setIsChatWindowOpen } = useChat();
+  const { settings } = useSharedState();
   const hasAppliedStartupChatPreference = useRef(false);
+  const windowWidth = width || settings.chatWindowWidth || 500;
+  const windowHeight = height || settings.chatWindowHeight || 360;
 
   useEffect(() => {
     if (hasAppliedStartupChatPreference.current) {
@@ -64,7 +68,7 @@ export function WindowPortal({
     // Create function for window management
     const showWindow = async () => {
       if (!_externalWindow || _externalWindow.closed) {
-        const windowFeatures = `width=${width},height=${height},positionNextToParent`;
+        const windowFeatures = `width=${windowWidth},height=${windowHeight},positionNextToParent`;
         _externalWindow = window.open("", "", windowFeatures);
 
         if (!_externalWindow) {
@@ -141,7 +145,7 @@ export function WindowPortal({
       // We don't close the window here anymore to maintain singleton
       // The window will be closed when the app is closed
     };
-  }, [isChatWindowOpen, width, height, title]);
+  }, [isChatWindowOpen, windowWidth, windowHeight, title]);
 
   // Always render to the portal if it exists, regardless of visibility
   if (!containerDiv) {
