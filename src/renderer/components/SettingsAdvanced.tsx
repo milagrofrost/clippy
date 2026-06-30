@@ -8,6 +8,21 @@ export const SettingsAdvanced: React.FC = () => {
   return (
     <div>
       <fieldset>
+        <legend>Windows</legend>
+        <Checkbox
+          id="centerChatWindow"
+          label="Center chat window on screen"
+          checked={!!settings.centerChatWindow}
+          onChange={(checked) => {
+            clippyApi.setState("settings.centerChatWindow", checked);
+          }}
+        />
+        <p style={{ marginTop: "10px" }}>
+          Open the chat window in the center of the display instead of next to
+          Clippy.
+        </p>
+      </fieldset>
+      <fieldset>
         <legend>Automatic Updates</legend>
         <Checkbox
           id="autoUpdates"
