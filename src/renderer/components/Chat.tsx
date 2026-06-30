@@ -10,6 +10,7 @@ import {
   abortRemoteRequest,
   promptOpenAiCompatibleStreaming,
 } from "../llm/openAiCompatibleClient";
+import { SettingsState } from "../../sharedState";
 
 export type ChatProps = {
   style?: React.CSSProperties;
@@ -134,11 +135,16 @@ export function Chat({ style }: ChatProps) {
 function getPromptStreamingResponse(
   userMessage: string,
   messages: Message[],
-  settings: ReturnType<typeof useSharedState>["settings"],
+  settings: SettingsState,
   options: { requestUUID: string },
 ): AsyncIterable<string> {
   if (settings.llmBackend === "openai-compatible") {
-    return promptOpenAiCompatibleStreaming(userMessage, messages, settings, options);
+    return promptOpenAiCompatibleStreaming(
+      userMessage,
+      messages,
+      settings,
+      options,
+    );
   }
 
   return window.electronAi.promptStreaming(
