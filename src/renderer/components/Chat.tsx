@@ -58,8 +58,8 @@ export function Chat({ style }: ChatProps) {
       console.groupCollapsed(
         `[Clippy Chat] Request ${requestUUID} animation parsing`,
       );
-      console.log("[Clippy Chat] User message:", message);
-      console.log("[Clippy Chat] LLM backend:", settings.llmBackend || "local");
+      console.log(`[Clippy Chat] User message: ${message}`);
+      console.log(`[Clippy Chat] LLM backend: ${settings.llmBackend || "local"}`);
 
       const response = getPromptStreamingResponse(message, messages, settings, {
         requestUUID,
@@ -73,7 +73,7 @@ export function Chat({ style }: ChatProps) {
 
       for await (const chunk of response) {
         chunkIndex += 1;
-        console.log(`[Clippy Chat] Raw chunk ${chunkIndex}:`, chunk);
+        console.log(`[Clippy Chat] Raw chunk ${chunkIndex}: ${chunk}`);
 
         if (fullContent === "") {
           setStatus("responding");
@@ -84,13 +84,15 @@ export function Chat({ style }: ChatProps) {
           const { text, animationKey, matchedToken, parserState } =
             filterMessageContent(contentToParse);
 
-          console.log("[Clippy Chat] Raw accumulated response:", contentToParse);
-          console.log("[Clippy Chat] Animation parser result:", {
-            parserState,
-            matchedToken,
-            animationKey,
-            filteredTextPreview: text.slice(0, 200),
-          });
+          console.log(`[Clippy Chat] Raw accumulated response: ${contentToParse}`);
+          console.log(
+            `[Clippy Chat] Animation parser result: ${JSON.stringify({
+              parserState,
+              matchedToken,
+              animationKey,
+              filteredTextPreview: text.slice(0, 200),
+            })}`,
+          );
 
           filteredContent = text;
           fullContent = contentToParse;
@@ -118,9 +120,9 @@ export function Chat({ style }: ChatProps) {
         setStreamingMessageContent(filteredContent);
       }
 
-      console.log("[Clippy Chat] Final raw model response:", fullContent);
-      console.log("[Clippy Chat] Final displayed response:", filteredContent);
-      console.log("[Clippy Chat] Animation was triggered:", hasSetAnimationKey);
+      console.log(`[Clippy Chat] Final raw model response: ${fullContent}`);
+      console.log(`[Clippy Chat] Final displayed response: ${filteredContent}`);
+      console.log(`[Clippy Chat] Animation was triggered: ${hasSetAnimationKey}`);
       console.groupEnd();
 
       // Once streaming is complete, add the full message to the messages array
