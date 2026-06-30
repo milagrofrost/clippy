@@ -1,6 +1,6 @@
 import { Column, TableView } from "./TableView";
 import { Progress } from "./Progress";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSharedState } from "../contexts/SharedStateContext";
 import { clippyApi } from "../clippyApi";
 import { prettyDownloadSpeed } from "../helpers/convert-download-speed";
@@ -29,7 +29,8 @@ export const SettingsModel: React.FC = () => {
     const model = models?.[modelKey as keyof typeof models];
 
     return {
-      default: !isRemoteBackend && model?.name === settings.selectedModel ? "ｘ" : "",
+      default:
+        !isRemoteBackend && model?.name === settings.selectedModel ? "ｘ" : "",
       name: model?.name,
       company: model?.company,
       size: model?.size,
@@ -41,7 +42,8 @@ export const SettingsModel: React.FC = () => {
   const selectedModel =
     models?.[modelKeys[selectedIndex] as keyof typeof models] || null;
   const isDownloading = isModelDownloading(selectedModel);
-  const isDefaultModel = !isRemoteBackend && selectedModel?.name === settings.selectedModel;
+  const isDefaultModel =
+    !isRemoteBackend && selectedModel?.name === settings.selectedModel;
 
   // Handlers
   // ---------------------------------------------------------------------------
@@ -176,6 +178,25 @@ export const SettingsModel: React.FC = () => {
 
 const RemoteModelSettings: React.FC = () => {
   const { settings } = useSharedState();
+  const [remoteApiBaseUrl, setRemoteApiBaseUrl] = useState(
+    settings.remoteApiBaseUrl || "",
+  );
+  const [remoteModelName, setRemoteModelName] = useState(
+    settings.remoteModelName || "",
+  );
+  const [remoteApiKey, setRemoteApiKey] = useState(settings.remoteApiKey || "");
+
+  useEffect(() => {
+    setRemoteApiBaseUrl(settings.remoteApiBaseUrl || "");
+    setRemoteModelName(settings.remoteModelName || "");
+    setRemoteApiKey(settings.remoteApiKey || "");
+  }, [settings.remoteApiBaseUrl, settings.remoteModelName, settings.remoteApiKey]);
+
+  const handleSave = async () => {
+    await clippyApi.setState("settings.remoteApiBaseUrl", remoteApiBaseUrl);
+    await clippyApi.setState("settings.remoteModelName", remoteModelName);
+    await clippyApi.setState("settings.remoteApiKey", remoteApiKey);
+  };
 
   return (
     <fieldset style={{ marginBottom: "20px" }}>
@@ -190,10 +211,9 @@ const RemoteModelSettings: React.FC = () => {
           id="remoteApiBaseUrl"
           type="text"
           placeholder="http://10.10.101.10:11434/v1"
-          value={settings.remoteApiBaseUrl || ""}
-          onChange={(e) =>
-            clippyApi.setState("settings.remoteApiBaseUrl", e.target.value)
-          }
+          value={remoteApiBaseUrl}
+          onBlur={handleSave}
+          onChange={(e) => setRemoteApiBaseUrl(e.target.value)}
         />
       </div>
       <div className="field-row-stacked">
@@ -202,10 +222,9 @@ const RemoteModelSettings: React.FC = () => {
           id="remoteModelName"
           type="text"
           placeholder="llama3.2, qwen2.5:0.5b, gpt-4o-mini"
-          value={settings.remoteModelName || ""}
-          onChange={(e) =>
-            clippyApi.setState("settings.remoteModelName", e.target.value)
-          }
+          value={remoteModelName}
+          onBlur={handleSave}
+          onChange={(e) => setRemoteModelName(e.target.value)}
         />
       </div>
       <div className="field-row-stacked">
@@ -214,12 +233,14 @@ const RemoteModelSettings: React.FC = () => {
           id="remoteApiKey"
           type="password"
           placeholder="Optional for local Ollama/llama.cpp servers"
-          value={settings.remoteApiKey || ""}
-          onChange={(e) =>
-            clippyApi.setState("settings.remoteApiKey", e.target.value)
-          }
+          value={remoteApiKey}
+          onBlur={handleSave}
+          onChange={(e) => setRemoteApiKey(e.target.value)}
         />
       </div>
+      <button style={{ marginTop: "10px" }} onClick={handleSave}>
+        Save Remote Settings
+      </button>
     </fieldset>
   );
 };
