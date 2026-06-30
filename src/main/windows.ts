@@ -129,7 +129,7 @@ export function setupWindowOpenHandler(browserWindow: BrowserWindow) {
       "positionNextToParent",
     );
     const newWindowPosition = shouldPositionNextToParent
-      ? getPopoverWindowPosition(browserWindow, { width, height })
+      ? getChatWindowPosition(browserWindow, { width, height })
       : undefined;
 
     return {
@@ -158,6 +158,54 @@ function setupNavigationHandler(browserWindow: BrowserWindow) {
   });
 }
 
+function getDisplayForWindow(browserWindow: BrowserWindow) {
+  const parentBounds = browserWindow.getBounds();
+  const displays = screen.getAllDisplays();
+
+  return (
+    displays.find(
+      (display) =>
+        parentBounds.x >= display.bounds.x &&
+        parentBounds.x <= display.bounds.x + display.bounds.width,
+    ) || screen.getPrimaryDisplay()
+  );
+}
+
+function getChatWindowPosition(
+  browserWindow: BrowserWindow,
+  size: { width: number; height: number },
+): { x: number; y: number } {
+  const settings = getStateManager().store.get("settings");
+
+  return settings.centerChatWindow
+    ? getCenteredWindowPosition(browserWindow, size)
+    : getPopoverWindowPosition(browserWindow, size);
+}
+
+/**
+ * Get the new window position centered on the current display
+ *
+ * @param browserWindow The browser window used to determine the current display
+ * @param size The size of the new window
+ * @returns The centered window position
+ */
+export function getCenteredWindowPosition(
+  browserWindow: BrowserWindow,
+  size: { width: number; height: number },
+): { x: number; y: number } {
+  const { width, height } = size;
+  const display = getDisplayForWindow(browserWindow);
+  const area = display.workArea;
+
+  const x = Math.round(area.x + (area.width - width) / 2);
+  const y = Math.round(area.y + (area.height - height) / 2);
+
+  return {
+    x: Math.max(area.x, x),
+    y: Math.max(area.y, y),
+  };
+}
+
 /**
  * Get the new window position for a popover-like window
  *
@@ -174,13 +222,7 @@ export function getPopoverWindowPosition(
   const SPACING = 50; // Distance between windows
 
   // Get the current display
-  const displays = screen.getAllDisplays();
-  const display =
-    displays.find(
-      (display) =>
-        parentBounds.x >= display.bounds.x &&
-        parentBounds.x <= display.bounds.x + display.bounds.width,
-    ) || displays[0];
+  const display = getDisplayForWindow(browserWindow);
 
   // Calculate horizontal position (left or right of parent)
   let x: number;
@@ -238,8 +280,15 @@ export function toggleChatWindow() {
     chatWindow.hide();
   } else {
     const mainWindow = getMainWindow();
+
+    if (!mainWindow) {
+      chatWindow.show();
+      chatWindow.focus();
+      return;
+    }
+
     const [width, height] = chatWindow.getSize();
-    const position = getPopoverWindowPosition(mainWindow, { width, height });
+    const position = getChatWindowPosition(mainWindow, { width, height });
 
     chatWindow.setPosition(position.x, position.y);
     chatWindow.show();
