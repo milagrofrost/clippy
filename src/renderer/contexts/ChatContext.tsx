@@ -30,11 +30,17 @@ type ClippyNamedStatus =
   | "thinking"
   | "goodbye";
 
+export type AnimationRequest = {
+  key: string;
+  id: string;
+};
+
 export type ChatContextType = {
   messages: Message[];
   addMessage: (message: Message) => Promise<void>;
   setMessages: (messages: Message[]) => void;
   animationKey: string;
+  animationRequest: AnimationRequest;
   setAnimationKey: (animationKey: string) => void;
   status: ClippyNamedStatus;
   setStatus: (status: ClippyNamedStatus) => void;
@@ -64,7 +70,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [chatRecords, setChatRecords] = useState<Record<string, ChatRecord>>(
     {},
   );
-  const [animationKey, setAnimationKey] = useState<string>("");
+  const [animationKey, setAnimationKeyState] = useState<string>("");
+  const [animationRequest, setAnimationRequest] = useState<AnimationRequest>({
+    key: "",
+    id: crypto.randomUUID(),
+  });
   const [status, setStatus] = useState<ClippyNamedStatus>("welcome");
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const { settings, models } = useContext(SharedStateContext);
@@ -73,6 +83,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [hasPerformedStartupCheck, setHasPerformedStartupCheck] =
     useState(false);
   const isRemoteBackend = settings.llmBackend === "openai-compatible";
+
+  const setAnimationKey = useCallback((key: string) => {
+    setAnimationKeyState(key);
+    setAnimationRequest({
+      key,
+      id: crypto.randomUUID(),
+    });
+  }, []);
 
   const getSystemPrompt = useCallback(() => {
     return settings.systemPrompt.replace(
@@ -348,6 +366,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     addMessage,
     setMessages,
     animationKey,
+    animationRequest,
     setAnimationKey,
     status,
     setStatus,
