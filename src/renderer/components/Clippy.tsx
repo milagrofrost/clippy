@@ -11,6 +11,17 @@ import { useDebugState } from "../contexts/DebugContext";
 
 const WAIT_TIME = 6000;
 
+const LEFT_RIGHT_ANIMATION_REMAP: Record<string, string> = {
+  GestureLeft: "GestureRight",
+  GestureRight: "GestureLeft",
+  LookLeft: "LookRight",
+  LookRight: "LookLeft",
+  LookUpLeft: "LookUpRight",
+  LookUpRight: "LookUpLeft",
+  LookDownLeft: "LookDownRight",
+  LookDownRight: "LookDownLeft",
+};
+
 export function Clippy() {
   const {
     animationKey,
@@ -26,21 +37,24 @@ export function Clippy() {
   >(undefined);
 
   const playAnimation = useCallback((key: string) => {
-    if (ANIMATIONS[key]) {
-      log(`Playing animation`, { key });
+    const resolvedKey = LEFT_RIGHT_ANIMATION_REMAP[key] || key;
+    const selectedAnimation = ANIMATIONS[resolvedKey];
+
+    if (selectedAnimation) {
+      log(`Playing animation`, { key, resolvedKey });
 
       if (animationTimeoutId) {
         window.clearTimeout(animationTimeoutId);
       }
 
-      setAnimation(ANIMATIONS[key]);
+      setAnimation(selectedAnimation);
       setAnimationTimeoutId(
         window.setTimeout(() => {
           setAnimation(ANIMATIONS.Default);
-        }, ANIMATIONS[key].length + 200),
+        }, selectedAnimation.length + 200),
       );
     } else {
-      log(`Animation not found`, { key });
+      log(`Animation not found`, { key, resolvedKey });
     }
   }, []);
 
