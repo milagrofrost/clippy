@@ -2,7 +2,10 @@ import { useState } from "react";
 
 import { Message } from "./Message";
 import { ChatInput } from "./ChatInput";
-import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
+import {
+  ANIMATION_KEYS_BRACKETS,
+  ANIMATION_PROMPT_CONTEXT,
+} from "../clippy-animation-helpers";
 import { useChat } from "../contexts/ChatContext";
 import { useSharedState } from "../contexts/SharedStateContext";
 import { electronAi } from "../clippyApi";
@@ -192,7 +195,7 @@ function getPromptWithSystemInstructions(
 
   const resolvedSystemPrompt = systemPrompt.replace(
     "[LIST OF ANIMATIONS]",
-    ANIMATION_KEYS_BRACKETS.join(", "),
+    ANIMATION_PROMPT_CONTEXT,
   );
 
   return `<system_instructions>\n${resolvedSystemPrompt}\n</system_instructions>\n\n<user_message>\n${userMessage}\n</user_message>`;
