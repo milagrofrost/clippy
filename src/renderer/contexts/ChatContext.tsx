@@ -13,7 +13,7 @@ import { areAnyModelsReadyOrDownloading } from "../../helpers/model-helpers";
 import { WelcomeMessageContent } from "../components/WelcomeMessageContent";
 import { ChatRecord, MessageRecord } from "../../types/interfaces";
 import { useDebugState } from "./DebugContext";
-import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
+import { ANIMATION_PROMPT_CONTEXT } from "../clippy-animation-helpers";
 import { ErrorLoadModelMessageContent } from "../components/ErrorLoadModelMessageContent";
 
 import type {
@@ -77,7 +77,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const getSystemPrompt = useCallback(() => {
     return settings.systemPrompt.replace(
       "[LIST OF ANIMATIONS]",
-      ANIMATION_KEYS_BRACKETS.join(", "),
+      ANIMATION_PROMPT_CONTEXT,
     );
   }, [settings.systemPrompt]);
 
