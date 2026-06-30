@@ -1,8 +1,15 @@
 import { SettingsState } from "../../sharedState";
 import { Message } from "../components/Message";
-import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
+import { ANIMATION_PROMPT_CONTEXT } from "../clippy-animation-helpers";
 
 const activeRequests = new Map<string, AbortController>();
+
+const ANIMATION_REMINDER_PROMPT = `Animation reminder for this response:
+Begin with exactly one supported animation token, such as [Thinking].
+The animation token must be the first non-whitespace text in the response.
+Do not omit the animation token.
+Do not explain the animation token.
+Use only a token from the animation list already provided in the system instructions.`;
 
 export type RemotePromptStreamingOptions = {
   requestUUID: string;
@@ -110,6 +117,11 @@ function getRemoteMessages(
   }
 
   remoteMessages.push({
+    role: "system",
+    content: ANIMATION_REMINDER_PROMPT,
+  });
+
+  remoteMessages.push({
     role: "user",
     content: userMessage,
   });
@@ -120,7 +132,7 @@ function getRemoteMessages(
 function getResolvedSystemPrompt(systemPrompt?: string): string {
   return (systemPrompt || "").replace(
     "[LIST OF ANIMATIONS]",
-    ANIMATION_KEYS_BRACKETS.join(", "),
+    ANIMATION_PROMPT_CONTEXT,
   );
 }
 
