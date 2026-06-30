@@ -72,6 +72,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isChatWindowOpen, setIsChatWindowOpen] = useState(false);
   const [hasPerformedStartupCheck, setHasPerformedStartupCheck] =
     useState(false);
+  const isRemoteBackend = settings.llmBackend === "openai-compatible";
 
   const getSystemPrompt = useCallback(() => {
     return settings.systemPrompt.replace(
@@ -97,14 +98,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setCurrentChatRecord(chatWithMessages.chat);
         }
 
-        await loadModel(
-          messagesToInitialPrompts(chatWithMessages?.messages || []),
-        );
+        if (!isRemoteBackend) {
+          await loadModel(
+            messagesToInitialPrompts(chatWithMessages?.messages || []),
+          );
+        }
       } catch (error) {
         console.error(error);
       }
     },
-    [currentChatRecord, messages],
+    [currentChatRecord, messages, isRemoteBackend],
   );
 
   const startNewChat = useCallback(async () => {
@@ -137,6 +140,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const loadModel = useCallback(
     async (initialPrompts: LanguageModelPrompt[] = []) => {
+      if (isRemoteBackend) {
+        setIsModelLoaded(true);
+        return;
+      }
+
       setIsModelLoaded(false);
 
       const options: LanguageModelCreateOptions = {
@@ -169,6 +177,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       settings.topK,
       settings.temperature,
       messages,
+      isRemoteBackend,
     ],
   );
 
@@ -225,6 +234,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (isRemoteBackend) {
+      setIsModelLoaded(true);
+      setStatus("idle");
+      return;
+    }
+
     if (settings.selectedModel) {
       loadModel();
     } else if (!settings.selectedModel && isModelLoaded) {
@@ -242,10 +257,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     settings.systemPrompt,
     settings.topK,
     settings.temperature,
+    isRemoteBackend,
   ]);
 
   // If selectedModel is undefined or not available, set it to the first downloaded model
   useEffect(() => {
+    if (isRemoteBackend) {
+      return;
+    }
+
     if (
       !settings.selectedModel ||
       !models[settings.selectedModel] ||
@@ -259,7 +279,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         clippyApi.setState("settings.selectedModel", downloadedModel.name);
       }
     }
-  }, [models]);
+  }, [models, isRemoteBackend]);
 
   // At app startup, initially load the chat records from the main process
   useEffect(() => {
@@ -272,6 +292,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // for our smallest model and tell the user about it.
   useEffect(() => {
     if (
+      isRemoteBackend ||
       messages.length > 0 ||
       Object.keys(models).length === 0 ||
       areAnyModelsReadyOrDownloading(models)
@@ -302,7 +323,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
 
     void downloadModelIfNoneReady();
-  }, [models]);
+  }, [models, isRemoteBackend]);
 
   // Subscribe to the main process's newChat event
   useEffect(() => {
@@ -358,25 +379,29 @@ function messageRecordFromMessage(message: Message): MessageRecord {
 }
 
 function getPreviewFromMessages(messages: Message[]): string {
-  if (messages.length === 0) {
-    return "";
+  const firstUserMessage = messages.find((message) => message.sender === "user");
+
+  if (!firstUserMessage?.content) {
+    return "New Chat";
   }
 
-  if (messages[0].sender === "clippy") {
-    return "Welcome to Clippy!";
+  if (firstUserMessage.content.length > 50) {
+    return `${firstUserMessage.content.slice(0, 50)}...`;
   }
 
-  // Remove newlines and limit to 100 characters
-  return messages[0].content.replace(/\n/g, " ").substring(0, 100);
+  return firstUserMessage.content;
 }
 
-function messagesToInitialPrompts(messages: Message[]): LanguageModelPrompt[] {
-  return messages.map((message) => ({
-    role:
-      message.sender === "clippy"
-        ? ("assistant" as LanguageModelPromptRole)
-        : ("user" as LanguageModelPromptRole),
-    type: "text" as LanguageModelPromptType,
-    content: message.content || "",
-  }));
+function messagesToInitialPrompts(messages: MessageRecord[]): LanguageModelPrompt[] {
+  return messages
+    .filter((message) => message.content)
+    .map((message) => ({
+      type: "text" as LanguageModelPromptType,
+      role: senderToPromptRole(message.sender),
+      content: message.content,
+    }));
+}
+
+function senderToPromptRole(sender: MessageRecord["sender"]): LanguageModelPromptRole {
+  return sender === "user" ? "user" : "assistant";
 }
