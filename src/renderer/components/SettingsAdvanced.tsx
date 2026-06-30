@@ -1,9 +1,32 @@
+import { useEffect, useState } from "react";
 import { clippyApi } from "../clippyApi";
 import { useSharedState } from "../contexts/SharedStateContext";
 import { Checkbox } from "./Checkbox";
 
 export const SettingsAdvanced: React.FC = () => {
   const { settings } = useSharedState();
+  const [chatWindowWidth, setChatWindowWidth] = useState(
+    String(settings.chatWindowWidth || 500),
+  );
+  const [chatWindowHeight, setChatWindowHeight] = useState(
+    String(settings.chatWindowHeight || 360),
+  );
+
+  useEffect(() => {
+    setChatWindowWidth(String(settings.chatWindowWidth || 500));
+    setChatWindowHeight(String(settings.chatWindowHeight || 360));
+  }, [settings.chatWindowWidth, settings.chatWindowHeight]);
+
+  const handleSaveChatWindowSize = async () => {
+    const width = parseIntegerWithFallback(chatWindowWidth, 500);
+    const height = parseIntegerWithFallback(chatWindowHeight, 360);
+
+    await clippyApi.setState("settings.chatWindowWidth", width);
+    await clippyApi.setState("settings.chatWindowHeight", height);
+
+    setChatWindowWidth(String(width));
+    setChatWindowHeight(String(height));
+  };
 
   return (
     <div>
@@ -29,13 +52,9 @@ export const SettingsAdvanced: React.FC = () => {
             min={300}
             max={1200}
             step={10}
-            value={settings.chatWindowWidth || 500}
-            onChange={(event) => {
-              clippyApi.setState(
-                "settings.chatWindowWidth",
-                parseInt(event.target.value, 10),
-              );
-            }}
+            value={chatWindowWidth}
+            onBlur={handleSaveChatWindowSize}
+            onChange={(event) => setChatWindowWidth(event.target.value)}
           />
         </div>
         <div className="field-row-stacked">
@@ -46,15 +65,14 @@ export const SettingsAdvanced: React.FC = () => {
             min={250}
             max={1000}
             step={10}
-            value={settings.chatWindowHeight || 360}
-            onChange={(event) => {
-              clippyApi.setState(
-                "settings.chatWindowHeight",
-                parseInt(event.target.value, 10),
-              );
-            }}
+            value={chatWindowHeight}
+            onBlur={handleSaveChatWindowSize}
+            onChange={(event) => setChatWindowHeight(event.target.value)}
           />
         </div>
+        <button style={{ marginTop: "10px" }} onClick={handleSaveChatWindowSize}>
+          Save Chat Window Size
+        </button>
         <p style={{ marginTop: "10px" }}>
           The new size applies the next time the chat window is created. Close
           and restart Clippy after changing this if the chat window is already
@@ -104,3 +122,13 @@ export const SettingsAdvanced: React.FC = () => {
     </div>
   );
 };
+
+function parseIntegerWithFallback(value: string, fallback: number): number {
+  const parsedValue = parseInt(value, 10);
+
+  if (Number.isNaN(parsedValue)) {
+    return fallback;
+  }
+
+  return parsedValue;
+}
