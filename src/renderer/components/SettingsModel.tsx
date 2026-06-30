@@ -10,6 +10,7 @@ import { isModelDownloading } from "../../helpers/model-helpers";
 export const SettingsModel: React.FC = () => {
   const { models, settings } = useSharedState();
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
+  const isRemoteBackend = settings.llmBackend === "openai-compatible";
 
   const columns: Array<Column> = [
     { key: "default", header: "Loaded", width: 50 },
@@ -28,7 +29,7 @@ export const SettingsModel: React.FC = () => {
     const model = models?.[modelKey as keyof typeof models];
 
     return {
-      default: model?.name === settings.selectedModel ? "ｘ" : "",
+      default: !isRemoteBackend && model?.name === settings.selectedModel ? "ｘ" : "",
       name: model?.name,
       company: model?.company,
       size: model?.size,
@@ -40,7 +41,7 @@ export const SettingsModel: React.FC = () => {
   const selectedModel =
     models?.[modelKeys[selectedIndex] as keyof typeof models] || null;
   const isDownloading = isModelDownloading(selectedModel);
-  const isDefaultModel = selectedModel?.name === settings.selectedModel;
+  const isDefaultModel = !isRemoteBackend && selectedModel?.name === settings.selectedModel;
 
   // Handlers
   // ---------------------------------------------------------------------------
@@ -64,16 +65,45 @@ export const SettingsModel: React.FC = () => {
 
   const handleMakeDefault = async () => {
     if (selectedModel) {
-      clippyApi.setState("settings.selectedModel", selectedModel.name);
+      await clippyApi.setState("settings.llmBackend", "local");
+      await clippyApi.setState("settings.selectedModel", selectedModel.name);
     }
   };
 
   return (
     <div>
+      <fieldset style={{ marginBottom: "20px" }}>
+        <legend>Backend</legend>
+        <div className="field-row">
+          <input
+            id="llmBackendLocal"
+            type="radio"
+            name="llmBackend"
+            checked={!isRemoteBackend}
+            onChange={() => clippyApi.setState("settings.llmBackend", "local")}
+          />
+          <label htmlFor="llmBackendLocal">Local GGUF model</label>
+        </div>
+        <div className="field-row">
+          <input
+            id="llmBackendRemote"
+            type="radio"
+            name="llmBackend"
+            checked={isRemoteBackend}
+            onChange={() =>
+              clippyApi.setState("settings.llmBackend", "openai-compatible")
+            }
+          />
+          <label htmlFor="llmBackendRemote">OpenAI-compatible remote API</label>
+        </div>
+      </fieldset>
+
+      {isRemoteBackend && <RemoteModelSettings />}
+
       <p>
         Select the model you want to use for your chat. The larger the model,
         the more powerful the chat, but the slower it will be - and the more
-        memory it will use. Clippy uses models in the GGUF format.{" "}
+        memory it will use. Clippy uses models in the GGUF format. {" "}
         <a
           href="https://github.com/felixrieseberg/clippy?tab=readme-ov-file#downloading-more-models"
           target="_blank"
@@ -141,6 +171,56 @@ export const SettingsModel: React.FC = () => {
         </div>
       )}
     </div>
+  );
+};
+
+const RemoteModelSettings: React.FC = () => {
+  const { settings } = useSharedState();
+
+  return (
+    <fieldset style={{ marginBottom: "20px" }}>
+      <legend>OpenAI-compatible Remote API</legend>
+      <p>
+        Use an OpenAI-compatible endpoint such as Ollama, llama.cpp server,
+        OpenRouter, LiteLLM, or OpenAI. Clippy will call /v1/chat/completions.
+      </p>
+      <div className="field-row-stacked">
+        <label htmlFor="remoteApiBaseUrl">API Base URL</label>
+        <input
+          id="remoteApiBaseUrl"
+          type="text"
+          placeholder="http://10.10.101.10:11434/v1"
+          value={settings.remoteApiBaseUrl || ""}
+          onChange={(e) =>
+            clippyApi.setState("settings.remoteApiBaseUrl", e.target.value)
+          }
+        />
+      </div>
+      <div className="field-row-stacked">
+        <label htmlFor="remoteModelName">Model Name</label>
+        <input
+          id="remoteModelName"
+          type="text"
+          placeholder="llama3.2, qwen2.5:0.5b, gpt-4o-mini"
+          value={settings.remoteModelName || ""}
+          onChange={(e) =>
+            clippyApi.setState("settings.remoteModelName", e.target.value)
+          }
+        />
+      </div>
+      <div className="field-row-stacked">
+        <label htmlFor="remoteApiKey">API Key</label>
+        <input
+          id="remoteApiKey"
+          type="password"
+          placeholder="Optional for local Ollama/llama.cpp servers"
+          value={settings.remoteApiKey || ""}
+          onChange={(e) =>
+            clippyApi.setState("settings.remoteApiKey", e.target.value)
+          }
+        />
+      </div>
+    </fieldset>
   );
 };
 
