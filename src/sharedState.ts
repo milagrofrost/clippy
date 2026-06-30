@@ -15,6 +15,8 @@ export interface SettingsState {
   chatAlwaysOnTop?: boolean;
   alwaysOpenChat?: boolean;
   centerChatWindow?: boolean;
+  chatWindowWidth?: number;
+  chatWindowHeight?: number;
   llmBackend?: LlmBackend;
   remoteApiBaseUrl?: string;
   remoteApiKey?: string;
@@ -49,6 +51,8 @@ export const DEFAULT_SETTINGS: SettingsState = {
   chatAlwaysOnTop: true,
   alwaysOpenChat: true,
   centerChatWindow: false,
+  chatWindowWidth: 500,
+  chatWindowHeight: 360,
   llmBackend: "local",
   remoteApiBaseUrl: "",
   remoteApiKey: "",
